@@ -1,6 +1,10 @@
 <template>
     <el-container class="container">
-        <el-header class="header">Quiz后台管理</el-header>
+        <el-header class="header">
+            <span>Quiz后台管理</span>
+            <el-button type="danger" size="small" icon="el-icon-switch-button" @click="handleLogout"
+                style="margin-left: auto;">退出登录</el-button>
+        </el-header>
         <el-container>
             <el-aside width="220px" class="aside">
                 <el-menu :default-openeds="['1']" class="el-menu-vertical-demo" :default-active="$route.path" router>
@@ -23,15 +27,16 @@
                     <div slot="header" class="clearfix">
                         <span>题目筛选</span>
                     </div>
-                    <el-form :inline="true" :model="formInline" class="demo-form-inline">
+                    <el-form :inline="true" :model="queryForm" class="demo-form-inline">
                         <el-form-item label="题目">
-                            <el-input v-model="formInline.user" placeholder="请输入题目关键词"></el-input>
+                            <el-input v-model="queryForm.keyword" placeholder="请输入题目关键词"
+                                @keyup.enter.native="loadQuestions"></el-input>
                         </el-form-item>
                         <el-form-item>
-                            <el-button type="primary" @click="onSubmit" icon="el-icon-search">查询</el-button>
+                            <el-button type="primary" @click="loadQuestions" icon="el-icon-search">查询</el-button>
                         </el-form-item>
                         <el-form-item>
-                            <el-button type="success" @click="onAddNewQuestion" icon="el-icon-plus">添加题目</el-button>
+                            <el-button type="success" @click="showAddDialog" icon="el-icon-plus">添加题目</el-button>
                         </el-form-item>
                     </el-form>
                 </el-card>
@@ -41,45 +46,32 @@
                     <div slot="header" class="clearfix">
                         <span>题目列表</span>
                     </div>
-                    <el-table :data="tableData" style="width: 100%">
-                        <el-table-column label="序号" width="50">
-                            <template slot-scope="scope">
-                                <span style="margin-left: 10px">{{ scope.row.id }}</span>
-                            </template>
-                        </el-table-column>
+                    <el-table :data="tableData" style="width: 100%" v-loading="loading">
+                        <el-table-column label="ID" prop="id" width="60"></el-table-column>
 
-                        <el-table-column label="题目" width="450">
-                            <template slot-scope="scope">
-                                <span>{{ scope.row.question }}</span>
-                            </template>
-                        </el-table-column>
+                        <el-table-column label="题目" prop="question" width="350"></el-table-column>
 
                         <el-table-column label="选项" width="260">
                             <template slot-scope="scope">
-                                <el-tag size="medium" type="primary" style="margin-right: 5px;">{{ scope.row.optionA
-                                    }}</el-tag>
-                                <br>
-                                <el-tag size="medium" type="success" style="margin-right: 5px;">{{ scope.row.optionB
-                                    }}</el-tag>
-                                <br>
-                                <el-tag size="medium" type="info" style="margin-right: 5px;">{{ scope.row.optionC
-                                    }}</el-tag>
-                                <br>
-                                <el-tag size="medium" type="warning" style="margin-right: 5px;">{{ scope.row.optionD
-                                    }}</el-tag>
-                            </template>
-                        </el-table-column> <el-table-column label="答案" width="180">
-                            <template slot-scope="scope">
-                                <el-tag size="medium" :type="getAnswerTagType(scope.row.answer)">{{ scope.row.answer
+                                <el-tag size="small" type="primary" style="margin: 2px;">{{ scope.row.optionA
                                 }}</el-tag>
+                                <el-tag size="small" type="success" style="margin: 2px;">{{ scope.row.optionB
+                                }}</el-tag>
+                                <el-tag size="small" type="info" style="margin: 2px;">{{ scope.row.optionC }}</el-tag>
+                                <el-tag size="small" type="warning" style="margin: 2px;">{{ scope.row.optionD
+                                }}</el-tag>
+                            </template>
+                        </el-table-column>
+
+                        <el-table-column label="答案" width="100">
+                            <template slot-scope="scope">
+                                <el-tag size="medium" type="danger">{{ scope.row.answer }}</el-tag>
                             </template>
                         </el-table-column>
 
                         <el-table-column label="操作">
                             <template slot-scope="scope">
-                                <el-button size="mini" @click="handleEdit(scope.$index, scope.row)"
-                                    icon="el-icon-edit">编辑</el-button>
-                                <el-button size="mini" type="danger" @click="handleDelete(scope.$index, scope.row)"
+                                <el-button size="mini" type="danger" @click="handleDelete(scope.row)"
                                     icon="el-icon-delete">删除</el-button>
                             </template>
                         </el-table-column>
@@ -87,41 +79,42 @@
 
                     <br>
                     <!-- 分页 -->
-                    <el-pagination background layout="prev, pager, next" :total="1000" style="text-align: center;">
+                    <el-pagination background layout="prev, pager, next, total" :total="total" :page-size="pageSize"
+                        :current-page="currentPage" @current-change="handlePageChange" style="text-align: center;">
                     </el-pagination>
                 </el-card>
 
                 <!-- 添加题目对话框 -->
                 <el-dialog title="添加新题目" :visible.sync="dialogFormVisible" width="40%" custom-class="beautify-dialog">
-                    <el-form :model="form">
-                        <el-form-item label="题目" :label-width="formLabelWidth">
-                            <el-input v-model="form.question" autocomplete="off" type="textarea" :rows="2"
+                    <el-form :model="questionForm" :rules="formRules" ref="questionForm">
+                        <el-form-item label="题目" :label-width="formLabelWidth" prop="question">
+                            <el-input v-model="questionForm.question" autocomplete="off" type="textarea" :rows="2"
                                 prefix-icon="el-icon-edit-outline"></el-input>
                         </el-form-item>
-                        <el-form-item label="选项A" :label-width="formLabelWidth">
-                            <el-input v-model="form.optionA" autocomplete="off"
+                        <el-form-item label="选项A" :label-width="formLabelWidth" prop="optionA">
+                            <el-input v-model="questionForm.optionA" autocomplete="off"
                                 prefix-icon="el-icon-tickets"></el-input>
                         </el-form-item>
-                        <el-form-item label="选项B" :label-width="formLabelWidth">
-                            <el-input v-model="form.optionB" autocomplete="off"
+                        <el-form-item label="选项B" :label-width="formLabelWidth" prop="optionB">
+                            <el-input v-model="questionForm.optionB" autocomplete="off"
                                 prefix-icon="el-icon-tickets"></el-input>
                         </el-form-item>
-                        <el-form-item label="选项C" :label-width="formLabelWidth">
-                            <el-input v-model="form.optionC" autocomplete="off"
+                        <el-form-item label="选项C" :label-width="formLabelWidth" prop="optionC">
+                            <el-input v-model="questionForm.optionC" autocomplete="off"
                                 prefix-icon="el-icon-tickets"></el-input>
                         </el-form-item>
-                        <el-form-item label="选项D" :label-width="formLabelWidth">
-                            <el-input v-model="form.optionD" autocomplete="off"
+                        <el-form-item label="选项D" :label-width="formLabelWidth" prop="optionD">
+                            <el-input v-model="questionForm.optionD" autocomplete="off"
                                 prefix-icon="el-icon-tickets"></el-input>
                         </el-form-item>
-                        <el-form-item label="答案" :label-width="formLabelWidth">
-                            <el-input v-model="form.answer" autocomplete="off" prefix-icon="el-icon-key"></el-input>
+                        <el-form-item label="答案" :label-width="formLabelWidth" prop="answer">
+                            <el-input v-model="questionForm.answer" autocomplete="off"
+                                prefix-icon="el-icon-key"></el-input>
                         </el-form-item>
                     </el-form>
                     <div slot="footer" class="dialog-footer">
                         <el-button @click="dialogFormVisible = false" icon="el-icon-close">取 消</el-button>
-                        <el-button type="primary" @click="dialogFormVisible = false" icon="el-icon-check">确
-                            定</el-button>
+                        <el-button type="primary" @click="handleAddQuestion" icon="el-icon-check">确 定</el-button>
                     </div>
                 </el-dialog>
             </el-main>
@@ -134,7 +127,8 @@ export default {
     data() {
         return {
             dialogFormVisible: false,
-            form: {
+            formLabelWidth: '80px',
+            questionForm: {
                 question: '',
                 optionA: '',
                 optionB: '',
@@ -142,115 +136,349 @@ export default {
                 optionD: '',
                 answer: ''
             },
-            formInline: {
-                user: '',
-                region: ''
+            formRules: {
+                question: [
+                    { required: true, message: '请输入题目', trigger: 'blur' }
+                ],
+                optionA: [
+                    { required: true, message: '请输入选项A', trigger: 'blur' }
+                ],
+                optionB: [
+                    { required: true, message: '请输入选项B', trigger: 'blur' }
+                ],
+                optionC: [
+                    { required: true, message: '请输入选项C', trigger: 'blur' }
+                ],
+                optionD: [
+                    { required: true, message: '请输入选项D', trigger: 'blur' }
+                ],
+                answer: [
+                    { required: true, message: '请输入答案', trigger: 'blur' }
+                ]
             },
-            tableData: [{
-                id: "1",
-                question: '以下哪个标签用于定义网页的导航部分？',
-                optionA: 'A. <header>',
-                optionB: 'B. <nav>',
-                optionC: 'C. <section>',
-                optionD: 'D. <aside>',
-                answer: 'B. <nav>'
-            }, {
-                id: "2",
-                question: '关于HTTP状态码,哪一个表示请求的资源未找到？',
-                optionA: 'A. 200',
-                optionB: 'B. 301',
-                optionC: 'C. 404',
-                optionD: 'D. 502',
-                answer: 'C. 404'
-            }, {
-                id: "3",
-                question: '下列哪种JavaScript声明方式可以创建不可重新赋值的变量？',
-                optionA: 'A. var total = 0',
-                optionB: 'B. let total = 0',
-                optionC: 'C. const total = 0',
-                optionD: 'D. function total() {}',
-                answer: 'C. const total = 0'
-            }, {
-                id: "4",
-                question: '在CSS中,哪条语句可以让元素水平居中？',
-                optionA: 'A. margin: 0 auto;',
-                optionB: 'B. text-align: left;',
-                optionC: 'C. display: inline;',
-                optionD: 'D. float: right;',
-                answer: 'A. margin: 0 auto;'
-            }]
+            queryForm: {
+                keyword: ''
+            },
+            tableData: [],
+            loading: false,
+            currentPage: 1,
+            pageSize: 5,
+            total: 0
         }
     },
+    mounted() {
+        this.loadQuestions();
+    },
     methods: {
-        onAddNewQuestion() {
-            this.dialogFormVisible = true;
+        // 加载题目列表
+        async loadQuestions() {
+            this.loading = true;
+            try {
+                const response = await this.$http.get('/questions', {
+                    params: {
+                        page: this.currentPage,
+                        pageSize: this.pageSize,
+                        keyword: this.queryForm.keyword || undefined
+                    }
+                });
+                this.tableData = response.data.rows;
+                this.total = response.data.total;
+            } catch (error) {
+                console.error('加载题目列表失败:', error);
+            } finally {
+                this.loading = false;
+            }
         },
-        onSubmit() {
-            console.log('submit!');
-        },
-        getAnswerTagType(answer) {
-            const prefix = (answer || '').trim().charAt(0).toUpperCase();
-            const map = {
-                A: 'primary',
-                B: 'success',
-                C: 'info',
-                D: 'warning',
+        // 显示添加对话框
+        showAddDialog() {
+            this.questionForm = {
+                question: '',
+                optionA: '',
+                optionB: '',
+                optionC: '',
+                optionD: '',
+                answer: ''
             };
-            return map[prefix] || 'danger';
+            this.dialogFormVisible = true;
+            this.$nextTick(() => {
+                this.$refs.questionForm.clearValidate();
+            });
         },
-        handleEdit(index, row) {
-            console.log(index, row);
+        // 添加题目
+        handleAddQuestion() {
+            this.$refs.questionForm.validate(async (valid) => {
+                if (valid) {
+                    try {
+                        await this.$http.post('/addQuestion', this.questionForm);
+                        this.$message.success('添加题目成功');
+                        this.dialogFormVisible = false;
+                        this.loadQuestions();
+                    } catch (error) {
+                        console.error('添加题目失败:', error);
+                    }
+                }
+            });
         },
-        handleDelete(index, row) {
-            console.log(index, row);
+        // 删除题目
+        handleDelete(row) {
+            this.$confirm('确定要删除该题目吗?', '提示', {
+                confirmButtonText: '确定',
+                cancelButtonText: '取消',
+                type: 'warning'
+            }).then(async () => {
+                try {
+                    await this.$http.get('/delQuestion', {
+                        params: { id: row.id }
+                    });
+                    this.$message.success('删除题目成功');
+                    this.loadQuestions();
+                } catch (error) {
+                    console.error('删除题目失败:', error);
+                }
+            }).catch(() => {
+                this.$message.info('已取消删除');
+            });
+        },
+        // 分页切换
+        handlePageChange(page) {
+            this.currentPage = page;
+            this.loadQuestions();
+        },
+        // 退出登录
+        handleLogout() {
+            this.$confirm('确定要退出登录吗?', '提示', {
+                confirmButtonText: '确定',
+                cancelButtonText: '取消',
+                type: 'warning'
+            }).then(() => {
+                localStorage.removeItem('token');
+                this.$message.success('已退出登录');
+                this.$router.push('/login');
+            }).catch(() => { });
         }
     }
 }
 </script>
 
 <style scoped>
+/* 全局容器：使用柔和的浅色渐变背景 */
 .container {
     height: 100vh;
-    font-family: 'Avenir', Helvetica, Arial, sans-serif;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+    overflow: hidden;
+    /* 防止双滚动条 */
 }
 
+/* 顶栏：高斯模糊 + 玻璃质感 */
 .header {
-    font-size: 24px;
-    font-weight: bold;
-    color: #333;
-    background-color: #fff;
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    color: #2c3e50;
     display: flex;
     align-items: center;
-    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-    z-index: 1;
+    font-size: 24px;
+    font-weight: 700;
+    z-index: 10;
+    /* 确保阴影在内容之上 */
+    padding: 0 40px;
 }
 
+/* 侧边栏：与顶栏呼应，更通透 */
 .aside {
-    background-color: #fff;
-    border-right: 1px solid #e6e6e6;
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-right: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.02);
+    transition: all 0.3s ease;
 }
 
-.el-menu-vertical-demo:not(.el-menu--collapse) {
-    width: 200px;
-    min-height: 400px;
-    border: none;
+/* 菜单项样式优化 */
+.el-menu {
+    border-right: none;
+    background: transparent;
+}
+
+.el-menu-item,
+.el-submenu__title {
+    color: #505050;
+    font-weight: 500;
+    margin: 8px 10px;
+    border-radius: 12px;
+    transition: all 0.3s;
+}
+
+.el-menu-item:hover,
+.el-submenu__title:hover {
+    background-color: rgba(255, 255, 255, 0.5);
+    color: #409EFF;
+    transform: translateX(5px);
+}
+
+.el-menu-item.is-active {
+    background: linear-gradient(90deg, #409EFF, #a0cfff);
+    color: white;
+    box-shadow: 0 4px 15px rgba(64, 158, 255, 0.3);
+}
+
+.el-menu-item i,
+.el-submenu__title i {
+    color: inherit;
 }
 
 .main {
-    background-color: #f4f4f5;
-    padding: 20px;
+    padding: 30px;
+    /* 增加滚动条美化 */
+    overflow-y: auto;
 }
 
+/* 卡片：悬浮感 + 磨砂玻璃 */
 .box-card {
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.box-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.12);
+}
+
+.clearfix span {
+    font-weight: 700;
+    font-size: 18px;
+    color: #2c3e50;
+    position: relative;
+    padding-left: 12px;
+}
+
+/* 标题前的装饰竖线 */
+.clearfix span::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 18px;
+    background: #409EFF;
+    border-radius: 2px;
+}
+
+/* 输入框和按钮的拟态/现代风格 */
+::v-deep .el-input__inner {
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.5);
+    box-shadow: inset 2px 2px 8px rgba(0, 0, 0, 0.02);
+    transition: all 0.3s;
+}
+
+::v-deep .el-input__inner:focus {
+    background: #fff;
+    border-color: #409EFF;
+    box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+}
+
+::v-deep .el-button {
+    border-radius: 20px;
+    border: none;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+/* 按钮特定样式 */
+::v-deep .el-button--primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    box-shadow: 0 4px 15px rgba(118, 75, 162, 0.3);
+}
+
+::v-deep .el-button--primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(118, 75, 162, 0.4);
+}
+
+::v-deep .el-button--success {
+    background: linear-gradient(135deg, #2af598 0%, #009efd 100%);
+    box-shadow: 0 4px 15px rgba(0, 158, 253, 0.3);
+}
+
+::v-deep .el-button--danger {
+    background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%);
+    background: linear-gradient(135deg, #ff758c 0%, #ff7eb3 100%);
+    /* 更鲜艳一点的红 */
+    box-shadow: 0 4px 15px rgba(255, 117, 140, 0.3);
+}
+
+/* 表格样式优化 */
+::v-deep .el-table {
+    background-color: transparent !important;
+}
+
+::v-deep .el-table th,
+::v-deep .el-table tr {
+    background-color: transparent !important;
+}
+
+::v-deep .el-table th {
+    color: #5e6d82;
+    font-weight: 600;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+}
+
+::v-deep .el-table td {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.03) !important;
+}
+
+::v-deep .el-table--enable-row-hover .el-table__body tr:hover>td {
+    background-color: rgba(64, 158, 255, 0.08) !important;
+}
+
+/* 标签 Tag 样式 */
+.el-tag {
+    border-radius: 8px;
+    border: none;
+    padding: 0 12px;
+    height: 28px;
+    line-height: 28px;
+}
+
+/* 分页样式 */
+::v-deep .el-pagination.is-background .el-pager li:not(.disabled).active {
+    background-color: #409EFF;
+    box-shadow: 0 4px 10px rgba(64, 158, 255, 0.4);
+}
+
+::v-deep .el-pagination.is-background .el-pager li {
+    background-color: rgba(255, 255, 255, 0.6);
     border-radius: 8px;
 }
 
-.beautify-dialog .el-input__inner,
-.beautify-dialog .el-textarea__inner {
-    border-radius: 15px;
+/* 对话框美化 */
+::v-deep .el-dialog {
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
-.beautify-dialog .el-form-item__label {
-    font-weight: bold;
+::v-deep .el-dialog__header {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    padding: 20px 30px;
+}
+
+::v-deep .el-dialog__footer {
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    padding: 20px 30px;
 }
 </style>
