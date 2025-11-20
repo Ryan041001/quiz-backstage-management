@@ -51,7 +51,12 @@ export default {
                 if (valid) {
                     this.loading = true;
                     try {
-                        const response = await this.$http.post("/login", this.loginForm);
+                        // 添加 isAdmin 标识
+                        const loginData = {
+                            ...this.loginForm,
+                            isAdmin: true
+                        };
+                        const response = await this.$http.post("/user/login", loginData);
 
                         // 保存token
                         localStorage.setItem("token", response.data);

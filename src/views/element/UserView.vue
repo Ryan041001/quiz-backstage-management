@@ -77,6 +77,16 @@
                             <el-input v-model="userForm.password" type="password" autocomplete="off"
                                 prefix-icon="el-icon-lock" show-password></el-input>
                         </el-form-item>
+                        <el-form-item label="确认密码" :label-width="formLabelWidth" prop="checkpassword">
+                            <el-input v-model="userForm.checkpassword" type="password" autocomplete="off"
+                                prefix-icon="el-icon-lock" show-password></el-input>
+                        </el-form-item>
+                        <el-form-item label="用户类型" :label-width="formLabelWidth" prop="userrole">
+                            <el-select v-model="userForm.userrole" placeholder="请选择用户类型" style="width: 100%">
+                                <el-option label="普通用户" value="0"></el-option>
+                                <el-option label="管理员" value="1"></el-option>
+                            </el-select>
+                        </el-form-item>
                     </el-form>
                     <div slot="footer" class="dialog-footer">
                         <el-button @click="dialogFormVisible = false" icon="el-icon-close">取 消</el-button>
@@ -97,6 +107,8 @@ export default {
             userForm: {
                 username: '',
                 password: '',
+                checkpassword: '',
+                userrole: '0'
             },
             formRules: {
                 username: [
@@ -106,6 +118,13 @@ export default {
                 password: [
                     { required: true, message: '请输入密码', trigger: 'blur' },
                     { min: 4, max: 20, message: '长度在 4 到 20 个字符', trigger: 'blur' }
+                ],
+                checkpassword: [
+                    { required: true, message: '请确认密码', trigger: 'blur' },
+                    { validator: this.validateConfirmPassword, trigger: 'blur' }
+                ],
+                userrole: [
+                    { required: true, message: '请选择用户类型', trigger: 'change' }
                 ]
             },
             queryForm: {
@@ -122,11 +141,19 @@ export default {
         this.loadUsers();
     },
     methods: {
+        // 确认密码验证
+        validateConfirmPassword(rule, value, callback) {
+            if (value !== this.userForm.password) {
+                callback(new Error('两次输入密码不一致'));
+            } else {
+                callback();
+            }
+        },
         // 加载用户列表
         async loadUsers() {
             this.loading = true;
             try {
-                const response = await this.$http.get('/users', {
+                const response = await this.$http.get('/user/users', {
                     params: {
                         page: this.currentPage,
                         pageSize: this.pageSize,
@@ -143,7 +170,7 @@ export default {
         },
         // 显示添加对话框
         showAddDialog() {
-            this.userForm = { username: '', password: '' };
+            this.userForm = { username: '', password: '', checkpassword: '', userrole: '0' };
             this.dialogFormVisible = true;
             this.$nextTick(() => {
                 this.$refs.userForm.clearValidate();
@@ -154,7 +181,7 @@ export default {
             this.$refs.userForm.validate(async (valid) => {
                 if (valid) {
                     try {
-                        await this.$http.post('/user', this.userForm);
+                        await this.$http.post('/user/addUser', this.userForm);
                         this.$message.success('添加用户成功');
                         this.dialogFormVisible = false;
                         this.loadUsers();
@@ -172,7 +199,7 @@ export default {
                 type: 'warning'
             }).then(async () => {
                 try {
-                    await this.$http.delete('/deleteById', {
+                    await this.$http.delete('/user/deleteById', {
                         params: { id: row.id }
                     });
                     this.$message.success('删除用户成功');

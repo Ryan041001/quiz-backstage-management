@@ -174,7 +174,7 @@ export default {
         async loadQuestions() {
             this.loading = true;
             try {
-                const response = await this.$http.get('/questions', {
+                const response = await this.$http.get('/question/questions', {
                     params: {
                         page: this.currentPage,
                         pageSize: this.pageSize,
@@ -209,7 +209,7 @@ export default {
             this.$refs.questionForm.validate(async (valid) => {
                 if (valid) {
                     try {
-                        await this.$http.post('/addQuestion', this.questionForm);
+                        await this.$http.post('/question/addQuestion', this.questionForm);
                         this.$message.success('添加题目成功');
                         this.dialogFormVisible = false;
                         this.loadQuestions();
@@ -227,7 +227,7 @@ export default {
                 type: 'warning'
             }).then(async () => {
                 try {
-                    await this.$http.get('/delQuestion', {
+                    await this.$http.get('/question/delQuestion', {
                         params: { id: row.id }
                     });
                     this.$message.success('删除题目成功');
