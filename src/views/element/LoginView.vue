@@ -60,6 +60,7 @@ export default {
 
                         // 保存token
                         localStorage.setItem("token", response.data);
+                        localStorage.setItem("username", this.loginForm.username);
 
                         this.$message.success("登录成功");
 

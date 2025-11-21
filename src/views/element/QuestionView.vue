@@ -2,8 +2,12 @@
     <el-container class="container">
         <el-header class="header">
             <span>Quiz后台管理</span>
-            <el-button type="danger" size="small" icon="el-icon-switch-button" @click="handleLogout"
-                style="margin-left: auto;">退出登录</el-button>
+            <div style="margin-left: auto; display: flex; align-items: center;">
+                <span style="margin-right: 15px; font-size: 14px;">
+                    <i class="el-icon-user-solid"></i> 当前用户: {{ currentUsername }}
+                </span>
+                <el-button type="danger" size="small" icon="el-icon-switch-button" @click="handleLogout">退出登录</el-button>
+            </div>
         </el-header>
         <el-container>
             <el-aside width="220px" class="aside">
@@ -69,8 +73,10 @@
                             </template>
                         </el-table-column>
 
-                        <el-table-column label="操作">
+                        <el-table-column label="操作" width="200">
                             <template slot-scope="scope">
+                                <el-button size="mini" type="primary" @click="showEditDialog(scope.row)"
+                                    icon="el-icon-edit">编辑</el-button>
                                 <el-button size="mini" type="danger" @click="handleDelete(scope.row)"
                                     icon="el-icon-delete">删除</el-button>
                             </template>
@@ -84,8 +90,8 @@
                     </el-pagination>
                 </el-card>
 
-                <!-- 添加题目对话框 -->
-                <el-dialog title="添加新题目" :visible.sync="dialogFormVisible" width="40%" custom-class="beautify-dialog">
+                <!-- 添加/编辑题目对话框 -->
+                <el-dialog :title="dialogTitle" :visible.sync="dialogFormVisible" width="40%" custom-class="beautify-dialog">
                     <el-form :model="questionForm" :rules="formRules" ref="questionForm">
                         <el-form-item label="题目" :label-width="formLabelWidth" prop="question">
                             <el-input v-model="questionForm.question" autocomplete="off" type="textarea" :rows="2"
@@ -114,7 +120,7 @@
                     </el-form>
                     <div slot="footer" class="dialog-footer">
                         <el-button @click="dialogFormVisible = false" icon="el-icon-close">取 消</el-button>
-                        <el-button type="primary" @click="handleAddQuestion" icon="el-icon-check">确 定</el-button>
+                        <el-button type="primary" @click="handleSaveQuestion" icon="el-icon-check">确 定</el-button>
                     </div>
                 </el-dialog>
             </el-main>
@@ -163,10 +169,14 @@ export default {
             loading: false,
             currentPage: 1,
             pageSize: 5,
-            total: 0
+            total: 0,
+            dialogTitle: '添加新题目',
+            isEdit: false,
+            currentUsername: ''
         }
     },
     mounted() {
+        this.currentUsername = localStorage.getItem('username') || '未知用户';
         this.loadQuestions();
     },
     methods: {
@@ -191,6 +201,8 @@ export default {
         },
         // 显示添加对话框
         showAddDialog() {
+            this.dialogTitle = '添加新题目';
+            this.isEdit = false;
             this.questionForm = {
                 question: '',
                 optionA: '',
@@ -204,17 +216,32 @@ export default {
                 this.$refs.questionForm.clearValidate();
             });
         },
-        // 添加题目
-        handleAddQuestion() {
+        // 显示编辑对话框
+        showEditDialog(row) {
+            this.dialogTitle = '编辑题目';
+            this.isEdit = true;
+            this.questionForm = { ...row };
+            this.dialogFormVisible = true;
+            this.$nextTick(() => {
+                this.$refs.questionForm.clearValidate();
+            });
+        },
+        // 保存题目（添加或更新）
+        handleSaveQuestion() {
             this.$refs.questionForm.validate(async (valid) => {
                 if (valid) {
                     try {
-                        await this.$http.post('/question/addQuestion', this.questionForm);
-                        this.$message.success('添加题目成功');
+                        if (this.isEdit) {
+                            await this.$http.put('/question/updateQuestion', this.questionForm);
+                            this.$message.success('更新题目成功');
+                        } else {
+                            await this.$http.post('/question/addQuestion', this.questionForm);
+                            this.$message.success('添加题目成功');
+                        }
                         this.dialogFormVisible = false;
                         this.loadQuestions();
                     } catch (error) {
-                        console.error('添加题目失败:', error);
+                        console.error(this.isEdit ? '更新题目失败:' : '添加题目失败:', error);
                     }
                 }
             });
@@ -252,6 +279,7 @@ export default {
                 type: 'warning'
             }).then(() => {
                 localStorage.removeItem('token');
+                localStorage.removeItem('username');
                 this.$message.success('已退出登录');
                 this.$router.push('/login');
             }).catch(() => { });

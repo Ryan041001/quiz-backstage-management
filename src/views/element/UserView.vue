@@ -2,8 +2,12 @@
     <el-container class="container">
         <el-header class="header">
             <span>Quiz后台管理</span>
-            <el-button type="danger" size="small" icon="el-icon-switch-button" @click="handleLogout"
-                style="margin-left: auto;">退出登录</el-button>
+            <div style="margin-left: auto; display: flex; align-items: center;">
+                <span style="margin-right: 15px; font-size: 14px;">
+                    <i class="el-icon-user-solid"></i> 当前用户: {{ currentUsername }}
+                </span>
+                <el-button type="danger" size="small" icon="el-icon-switch-button" @click="handleLogout">退出登录</el-button>
+            </div>
         </el-header>
         <el-container>
             <el-aside width="220px" class="aside">
@@ -51,8 +55,19 @@
                         <el-table-column label="用户名" prop="username" width="200"></el-table-column>
                         <el-table-column label="创建时间" prop="createTime" width="200"></el-table-column>
                         <el-table-column label="更新时间" prop="updateTime" width="200"></el-table-column>
+                        <el-table-column label="用户类型" width="120">
+                            <template slot-scope="scope">
+                                <el-tag :type="scope.row.userRole === 1 ? 'danger' : 'success'">
+                                    {{ scope.row.userRole === 1 ? '管理员' : '普通用户' }}
+                                </el-tag>
+                            </template>
+                        </el-table-column>
                         <el-table-column label="操作">
                             <template slot-scope="scope">
+                                <el-button size="mini" type="warning" @click="handleResetPassword(scope.row)"
+                                    icon="el-icon-key">重置密码</el-button>
+                                <el-button size="mini" type="primary" @click="handleChangeRole(scope.row)"
+                                    icon="el-icon-s-custom">权限</el-button>
                                 <el-button size="mini" type="danger" @click="handleDelete(scope.row)"
                                     icon="el-icon-delete">删除</el-button>
                             </template>
@@ -91,6 +106,25 @@
                     <div slot="footer" class="dialog-footer">
                         <el-button @click="dialogFormVisible = false" icon="el-icon-close">取 消</el-button>
                         <el-button type="primary" @click="handleAddUser" icon="el-icon-check">确 定</el-button>
+                    </div>
+                </el-dialog>
+
+                <!-- 修改权限对话框 -->
+                <el-dialog title="修改用户权限" :visible.sync="roleDialogVisible" width="30%" custom-class="beautify-dialog">
+                    <el-form :model="roleForm" label-width="80px">
+                        <el-form-item label="用户名">
+                            <el-input v-model="roleForm.username" disabled></el-input>
+                        </el-form-item>
+                        <el-form-item label="用户类型">
+                            <el-select v-model="roleForm.userRole" placeholder="请选择用户类型" style="width: 100%">
+                                <el-option label="普通用户" :value="0"></el-option>
+                                <el-option label="管理员" :value="1"></el-option>
+                            </el-select>
+                        </el-form-item>
+                    </el-form>
+                    <div slot="footer" class="dialog-footer">
+                        <el-button @click="roleDialogVisible = false" icon="el-icon-close">取 消</el-button>
+                        <el-button type="primary" @click="submitChangeRole" icon="el-icon-check">确 定</el-button>
                     </div>
                 </el-dialog>
             </el-main>
@@ -134,10 +168,18 @@ export default {
             loading: false,
             currentPage: 1,
             pageSize: 5,
-            total: 0
+            total: 0,
+            currentUsername: '',
+            roleDialogVisible: false,
+            roleForm: {
+                id: null,
+                username: '',
+                userRole: 0
+            }
         }
     },
     mounted() {
+        this.currentUsername = localStorage.getItem('username') || '未知用户';
         this.loadUsers();
     },
     methods: {
@@ -211,6 +253,58 @@ export default {
                 this.$message.info('已取消删除');
             });
         },
+        // 重置密码
+        handleResetPassword(row) {
+            this.$confirm('确定要重置该用户的密码为 123456 吗?', '提示', {
+                confirmButtonText: '确定',
+                cancelButtonText: '取消',
+                type: 'warning'
+            }).then(async () => {
+                try {
+                    await this.$http.put('/user/resetPassword', null, {
+                        params: { id: row.id }
+                    });
+                    this.$message.success('重置密码成功');
+                } catch (error) {
+                    console.error('重置密码失败:', error);
+                }
+            }).catch(() => {
+                this.$message.info('已取消重置');
+            });
+        },
+        // 打开修改权限对话框
+        handleChangeRole(row) {
+            this.roleForm = {
+                id: row.id,
+                username: row.username,
+                userRole: row.userRole
+            };
+            this.roleDialogVisible = true;
+        },
+        // 提交修改权限
+        async submitChangeRole() {
+            try {
+                // 构造完整的User对象，因为后端updateUser接收User对象
+                // 这里我们需要先获取用户的完整信息，或者后端只更新非空字段
+                // 根据UserMapper，它会更新所有字段，所以我们需要小心
+                // 为了安全起见，我们先获取当前用户信息
+                const res = await this.$http.get(`/user/user/${this.roleForm.id}`);
+                const user = res.data;
+                
+                // 更新角色
+                user.userRole = this.roleForm.userRole;
+                
+                // 调用更新接口
+                await this.$http.put('/user/user', user);
+                
+                this.$message.success('修改权限成功');
+                this.roleDialogVisible = false;
+                this.loadUsers();
+            } catch (error) {
+                console.error('修改权限失败:', error);
+                this.$message.error('修改权限失败');
+            }
+        },
         // 分页切换
         handlePageChange(page) {
             this.currentPage = page;
@@ -224,6 +318,7 @@ export default {
                 type: 'warning'
             }).then(() => {
                 localStorage.removeItem('token');
+                localStorage.removeItem('username');
                 this.$message.success('已退出登录');
                 this.$router.push('/login');
             }).catch(() => { });
