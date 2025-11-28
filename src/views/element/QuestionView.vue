@@ -195,6 +195,7 @@ export default {
                 this.total = response.data.total;
             } catch (error) {
                 console.error('加载题目列表失败:', error);
+                // 错误已在拦截器中处理
             } finally {
                 this.loading = false;
             }
@@ -233,23 +234,25 @@ export default {
                     try {
                         if (this.isEdit) {
                             await this.$http.put('/question/updateQuestion', this.questionForm);
-                            this.$message.success('更新题目成功');
+                            this.$message.success('题目更新成功！');
                         } else {
                             await this.$http.post('/question/addQuestion', this.questionForm);
-                            this.$message.success('添加题目成功');
+                            this.$message.success('新题目添加成功！');
                         }
                         this.dialogFormVisible = false;
                         this.loadQuestions();
                     } catch (error) {
                         console.error(this.isEdit ? '更新题目失败:' : '添加题目失败:', error);
+                        // 错误已在拦截器中处理
                     }
                 }
             });
         },
         // 删除题目
         handleDelete(row) {
-            this.$confirm('确定要删除该题目吗?', '提示', {
-                confirmButtonText: '确定',
+            const questionPreview = row.question.length > 20 ? row.question.substring(0, 20) + '...' : row.question;
+            this.$confirm(`确定要删除题目「${questionPreview}」吗？删除后无法恢复！`, '删除确认', {
+                confirmButtonText: '确定删除',
                 cancelButtonText: '取消',
                 type: 'warning'
             }).then(async () => {
@@ -257,13 +260,14 @@ export default {
                     await this.$http.get('/question/delQuestion', {
                         params: { id: row.id }
                     });
-                    this.$message.success('删除题目成功');
+                    this.$message.success('题目已成功删除！');
                     this.loadQuestions();
                 } catch (error) {
                     console.error('删除题目失败:', error);
+                    // 错误已在拦截器中处理
                 }
             }).catch(() => {
-                this.$message.info('已取消删除');
+                this.$message.info('已取消删除操作');
             });
         },
         // 分页切换
@@ -273,14 +277,14 @@ export default {
         },
         // 退出登录
         handleLogout() {
-            this.$confirm('确定要退出登录吗?', '提示', {
-                confirmButtonText: '确定',
+            this.$confirm('确定要退出登录吗？', '退出确认', {
+                confirmButtonText: '确定退出',
                 cancelButtonText: '取消',
                 type: 'warning'
             }).then(() => {
                 localStorage.removeItem('token');
                 localStorage.removeItem('username');
-                this.$message.success('已退出登录');
+                this.$message.success('已安全退出登录');
                 this.$router.push('/login');
             }).catch(() => { });
         }

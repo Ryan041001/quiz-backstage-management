@@ -206,6 +206,7 @@ export default {
                 this.total = response.data.total;
             } catch (error) {
                 console.error('加载用户列表失败:', error);
+                // 错误已在拦截器中处理
             } finally {
                 this.loading = false;
             }
@@ -224,19 +225,20 @@ export default {
                 if (valid) {
                     try {
                         await this.$http.post('/user/addUser', this.userForm);
-                        this.$message.success('添加用户成功');
+                        this.$message.success('添加用户成功！');
                         this.dialogFormVisible = false;
                         this.loadUsers();
                     } catch (error) {
                         console.error('添加用户失败:', error);
+                        // 错误已在拦截器中处理
                     }
                 }
             });
         },
         // 删除用户
         handleDelete(row) {
-            this.$confirm('确定要删除该用户吗?', '提示', {
-                confirmButtonText: '确定',
+            this.$confirm(`确定要删除用户「${row.username}」吗？删除后无法恢复！`, '删除确认', {
+                confirmButtonText: '确定删除',
                 cancelButtonText: '取消',
                 type: 'warning'
             }).then(async () => {
@@ -244,19 +246,20 @@ export default {
                     await this.$http.delete('/user/deleteById', {
                         params: { id: row.id }
                     });
-                    this.$message.success('删除用户成功');
+                    this.$message.success(`用户「${row.username}」已成功删除！`);
                     this.loadUsers();
                 } catch (error) {
                     console.error('删除用户失败:', error);
+                    // 错误已在拦截器中处理
                 }
             }).catch(() => {
-                this.$message.info('已取消删除');
+                this.$message.info('已取消删除操作');
             });
         },
         // 重置密码
         handleResetPassword(row) {
-            this.$confirm('确定要重置该用户的密码为 123456 吗?', '提示', {
-                confirmButtonText: '确定',
+            this.$confirm(`确定要将用户「${row.username}」的密码重置为 123456 吗？`, '重置密码确认', {
+                confirmButtonText: '确定重置',
                 cancelButtonText: '取消',
                 type: 'warning'
             }).then(async () => {
@@ -264,12 +267,13 @@ export default {
                     await this.$http.put('/user/resetPassword', null, {
                         params: { id: row.id }
                     });
-                    this.$message.success('重置密码成功');
+                    this.$message.success(`用户「${row.username}」的密码已重置为 123456`);
                 } catch (error) {
                     console.error('重置密码失败:', error);
+                    // 错误已在拦截器中处理
                 }
             }).catch(() => {
-                this.$message.info('已取消重置');
+                this.$message.info('已取消重置密码操作');
             });
         },
         // 打开修改权限对话框
@@ -285,9 +289,6 @@ export default {
         async submitChangeRole() {
             try {
                 // 构造完整的User对象，因为后端updateUser接收User对象
-                // 这里我们需要先获取用户的完整信息，或者后端只更新非空字段
-                // 根据UserMapper，它会更新所有字段，所以我们需要小心
-                // 为了安全起见，我们先获取当前用户信息
                 const res = await this.$http.get(`/user/user/${this.roleForm.id}`);
                 const user = res.data;
                 
@@ -297,12 +298,13 @@ export default {
                 // 调用更新接口
                 await this.$http.put('/user/user', user);
                 
-                this.$message.success('修改权限成功');
+                const roleText = this.roleForm.userRole === 1 ? '管理员' : '普通用户';
+                this.$message.success(`用户「${this.roleForm.username}」的权限已修改为${roleText}`);
                 this.roleDialogVisible = false;
                 this.loadUsers();
             } catch (error) {
                 console.error('修改权限失败:', error);
-                this.$message.error('修改权限失败');
+                // 错误已在拦截器中处理
             }
         },
         // 分页切换
@@ -312,14 +314,14 @@ export default {
         },
         // 退出登录
         handleLogout() {
-            this.$confirm('确定要退出登录吗?', '提示', {
-                confirmButtonText: '确定',
+            this.$confirm('确定要退出登录吗？', '退出确认', {
+                confirmButtonText: '确定退出',
                 cancelButtonText: '取消',
                 type: 'warning'
             }).then(() => {
                 localStorage.removeItem('token');
                 localStorage.removeItem('username');
-                this.$message.success('已退出登录');
+                this.$message.success('已安全退出登录');
                 this.$router.push('/login');
             }).catch(() => { });
         }

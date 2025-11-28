@@ -69,7 +69,7 @@ export default {
                         this.$router.push(redirect);
                     } catch (error) {
                         console.error("登录失败:", error);
-                        this.$message.error(error.message || "登录失败，请检查用户名和密码");
+                        // 错误消息已在响应拦截器中显示，这里不需要重复显示
                     } finally {
                         this.loading = false;
                     }
